@@ -45,6 +45,7 @@ class SimulateRequest(BaseModel):
 class ExecuteRequest(BaseModel):
     sql: str
     simulation: dict
+    user_input: str
 
 @app.post("/nl_to_sql")
 def nl_to_sql(req: NLRequest):
@@ -109,6 +110,36 @@ def simulate(req: SimulateRequest):
 def execute(req: ExecuteRequest):
     try:
         result = kernel.run_sql(req.sql, req.simulation)
+        
+        # Extract decision and reason for audit logging
+        status = result.get("status", "UNKNOWN")
+        decision = "DENIED" if status == "DENIED" else "ALLOWED"
+        reason = result.get("reason", "")
+        
+        # If governance result is available, use its decision and explanation
+        if "governance" in result:
+            governance = result["governance"]
+            if "decision" in governance:
+                gov_decision = governance["decision"].get("decision", "")
+                # Normalize decision values: DENY -> DENIED, others keep as is
+                if gov_decision == "DENY":
+                    decision = "DENIED"
+                elif gov_decision:
+                    decision = gov_decision
+                reason = governance["decision"].get("explanation", reason)
+        elif status == "DENIED" and "reason" in result:
+            # Use direct reason for DENIED cases without governance (e.g., invalid simulation)
+            reason = result["reason"]
+        
+        # Log audit entry
+        log_audit(
+            user_input=req.user_input,
+            sql=req.sql,
+            decision=decision,
+            reason=reason,
+            simulation=req.simulation
+        )
+        
         return result
     except Exception as e:
         raise HTTPException(
@@ -118,28 +149,44 @@ def execute(req: ExecuteRequest):
 
 @app.get("/audit_logs")
 def get_audit_logs(limit: int = 50):
-    conn = sqlite3.connect(DB_PATH)
-    cursor = conn.cursor()
+    try:
+        conn = sqlite3.connect(DB_PATH)
+        cursor = conn.cursor()
 
-    cursor.execute("""
-        SELECT timestamp, user_input, sql, decision, reason, simulation
-        FROM audit_logs
-        ORDER BY id DESC
-        LIMIT ?
-    """, (limit,))
+        cursor.execute("""
+            SELECT timestamp, user_input, sql, decision, reason, simulation
+            FROM audit_logs
+            ORDER BY id DESC
+            LIMIT ?
+        """, (limit,))
 
-    rows = cursor.fetchall()
-    conn.close()
+        rows = cursor.fetchall()
+        conn.close()
 
-    logs = []
-    for row in rows:
-        logs.append({
-            "timestamp": row[0],
-            "user_input": row[1],
-            "sql": row[2],
-            "decision": row[3],
-            "reason": row[4],
-            "simulation": json.loads(row[5])
-        })
+        logs = []
+        for row in rows:
+            try:
+                # Handle missing or null simulation field
+                simulation_data = row[5] if row[5] else "{}"
+                try:
+                    simulation = json.loads(simulation_data)
+                except (json.JSONDecodeError, TypeError):
+                    # If JSON parsing fails, use empty dict
+                    simulation = {}
+                
+                logs.append({
+                    "timestamp": row[0] or "",
+                    "user_input": row[1] or "",
+                    "sql": row[2] or "",
+                    "decision": row[3] or "",
+                    "reason": row[4] or "",
+                    "simulation": simulation
+                })
+            except Exception as e:
+                # Skip malformed rows but continue processing others
+                continue
 
-    return logs
+        return logs
+    except Exception as e:
+        # Return empty list on any database or connection errors
+        return []
