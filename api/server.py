@@ -8,6 +8,13 @@ from core.sandbox.sandbox_manager import SandboxManager
 from execution.execution_kernel import ExecutionKernel
 from agents.nl_interface_agent import NaturalLanguageAgent
 from core.audit_logger import log_audit
+from core.audit_logger import init_db
+from core.audit_logger import DB_PATH
+
+db_path = DB_PATH
+
+
+init_db()
 
 app = FastAPI(title="Governed AI Execution Engine")
 
@@ -111,17 +118,16 @@ def execute(req: ExecuteRequest):
 
 @app.get("/audit_logs")
 def get_audit_logs(limit: int = 50):
-    BASE_DIR = os.path.dirname(os.path.abspath(__file__))
-    db_path = os.path.join(BASE_DIR, "..", "db", "audit_logs.db")
-    conn = sqlite3.connect(db_path)
+    conn = sqlite3.connect(DB_PATH)
     cursor = conn.cursor()
 
     cursor.execute("""
-                   SELECT timestamp, policy, invoice, decision, explanation
-                   FROM audit_logs
-                   ORDER BY id DESC
-                   LIMIT ?
-                    """, (limit,))
+        SELECT timestamp, user_input, sql, decision, reason, simulation
+        FROM audit_logs
+        ORDER BY id DESC
+        LIMIT ?
+    """, (limit,))
+
     rows = cursor.fetchall()
     conn.close()
 
@@ -129,14 +135,11 @@ def get_audit_logs(limit: int = 50):
     for row in rows:
         logs.append({
             "timestamp": row[0],
-            "policy": json.loads(row[1]) if row[1] else None,
-            "invoice": json.loads(row[2]) if row[2] else None,
+            "user_input": row[1],
+            "sql": row[2],
             "decision": row[3],
-            "explanation": json.loads(row[4]) if row[4] else None
-        }
-        )
-    
-    return {
-        "total": len(logs),
-        "logs": logs
-    }
+            "reason": row[4],
+            "simulation": json.loads(row[5])
+        })
+
+    return logs

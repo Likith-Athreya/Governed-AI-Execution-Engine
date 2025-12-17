@@ -160,17 +160,18 @@ if st.button("Load Audit Logs"):
         else:
             for log in logs_list:
                 with st.expander(f"{log['timestamp']} - {log['decision']}"):
-                    st.markdown("**Policy**")
-                    st.json(log.get("policy"))
+                    st.markdown("**User Input**")
+                    st.write(log["user_input"])
 
-                    st.markdown("**Invoice**")
-                    st.json(log.get("invoice"))
+                    st.markdown("**SQL**")
+                    st.code(log["sql"], language="sql")
 
-                    st.markdown("**Decision**")
-                    st.write(log.get("decision"))
+                    st.markdown("**Decision Reason**")
+                    st.write(log["reason"])
 
-                    st.markdown("**Explanation**")
-                    st.write(log.get("explanation"))
+                    st.markdown("**Simulation Evidence**")
+                    st.json(log["simulation"])
+
 
 
 

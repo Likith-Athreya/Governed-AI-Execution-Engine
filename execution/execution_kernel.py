@@ -2,6 +2,8 @@ from core.sandbox.sandbox_manager import SandboxManager
 from agentic.governance_orchestrator import GovernanceOrchestrator
 from core.sandbox.utils import execute_query
 from catalog.pii_classifier import PIIClassifier
+from core.audit_logger import log_audit
+
 import re
 
 class ExecutionKernel:
