@@ -1,0 +1,18 @@
+{
+    "type": "object",
+    "properties": {
+        "action": {"type": "string",
+    "enum": ["EXECUTE_SQL"]},
+    "sql": {"type": "string"}, 
+    "constraints": {
+        "type": "object",
+        "properties": {
+            "row_limit": {"type": "integer"},
+            "allow_pii": {"type": "boolean"}
+        },
+        "required": ["allow_pii"]
+    },
+    "justification": {"type": "array", "items": {"type": "string"}}
+    },
+    "required": ["action", "sql", "constraints", "justification"]
+}
