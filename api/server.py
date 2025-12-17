@@ -1,29 +1,28 @@
 from fastapi import FastAPI
 from pydantic import BaseModel
+from agentic.graph import graph
+from core.audit_logger import init_db
 import json
 
-from agents.policy_interpreter import interpret_policy
-from core.decision import final_decision
+init_db()
 
-app = FastAPI(title = "Autonomous Compliance and Audit Agent API")
+app = FastAPI(
+    title = "Governed AI Execution Engine",
+    description = "Natural language driven, policy-governed AI execution system",
+    version = "1.0"
+)
 
-class PolicyRequest(BaseModel):
-    text: str
-class InvoiceRequest(BaseModel):
-    policy_text: str
-    invoice: dict
+class QueryRequest(BaseModel):
+    query: str
 
-@app.post("/interpret_policy")
-def interpret(policy: PolicyRequest):
-    structured = interpret_policy(policy.text)
-    return{"structured_policy": structured}
+@app.post("/query")
+def run_query(request: QueryRequest):
+    result = graph.invoke({
+        "user_input": request.query
+    })
 
-@app.post("/simulate_invoice")
-def simulate_endpoint(invoice_req:InvoiceRequest):
-    policy = interpret_policy(invoice_req.policy_text)
-    result = final_decision(policy, invoice_req.invoice)
-    return result
+    return result["final_result"]
 
 @app.get("/")
 def root():
-    return {"message": "Welcome to the Autonomous Compliance and Audit Agent API"}
+    return {"message": "Welcome to the Governed AI Execution Engine API"}
