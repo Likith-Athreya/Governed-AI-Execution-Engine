@@ -10,46 +10,52 @@ class ExecutionKernel:
         self.governance_orchestrator = GovernanceOrchestrator()
         self.pii_classifier = PIIClassifier()
 
-    def extract_columns(self, sql: str)-> list:
+    def extract_columns(self, sql: str) -> list:
         match = re.search(r"select\s+(.*?)\s+from", sql, re.IGNORECASE)
         if not match:
             return []
         return [c.strip() for c in match.group(1).split(",")]
 
-    def run_sql(self, sql: dict)-> dict:
-        sandbox = SandboxManager()
-        sandbox_result = sandbox.simulate_query(sql)
-
-        columns = self.extract_columns(sql)
-        column_classes = self.pii_classifier.classify_columns(columns)
-        pii_columns = [
-            col for col, cls in column_classes.items() if cls == "PII"
-        ]
-
-        if pii_columns:
+    def run_sql(self, sql: str, simulation: dict) -> dict:
+        # Hard block if simulation already failed
+        if not simulation.get("valid", False):
             return {
                 "status": "DENIED",
-                "sql": sql,
-                "reason": f"PII access detected: {pii_columns}"
+                "reason": "Simulation invalid",
+                "simulation": simulation
             }
 
+        # Governance orchestration
         governance_result = self.governance_orchestrator.run(
-            sandbox_result = sandbox_result, policy = self.policy
+            sandbox_result=simulation,
+            policy=self.policy
         )
 
         decision = governance_result["decision"]["decision"]
-        if decision =="DENY": 
-            return{
-                "status": "BLOCKED",
+        if decision == "DENY":
+            return {
+                "status": "DENIED",
                 "sql": sql,
-                "governance": governance_result
+                "governance": governance_result,
+                "simulation": simulation
             }
-        data = execute_query(sql)
-        
-        return{
-            "status":"ALLOWED",
-            "sql":sql,
-            "governance": governance_result,
-            "message": "query approved for execution"
+
+        # Execute real query (SQLite)
+        query_result = execute_query(sql)
+        rows = query_result.get("rows", [])
+
+        # Build tabular response
+        columns = simulation.get("columns_accessed", [])
+        data = {
+            "columns": columns,
+            "rows": rows
         }
 
+        return {
+            "status": "ALLOWED",
+            "sql": sql,
+            "simulation": simulation,
+            "governance": governance_result,
+            "data": data,
+            "message": "query approved after simulation"
+        }

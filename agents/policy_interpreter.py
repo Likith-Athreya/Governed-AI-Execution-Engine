@@ -1,18 +1,14 @@
 import json
-POLICY_SCHEMA = {
-"max_amount_without_manager_approval": int,
-"blocked_vendors":list,
-"allowed_countries":list
-}
+import re
+
 def is_already_structured(policy):
     return isinstance(policy, dict)
+
 def validate_policy(policy_dict):
     validated = {}
 
     validated["max_amount_without_manager_approval"] = int(
-
-
-    policy_dict.get("max_amount_without_manager_approval", 0)
+        policy_dict.get("max_amount_without_manager_approval", 0)
     )
     validated["blocked_vendors"] = policy_dict.get("blocked_vendors", [])
     if not isinstance(validated["blocked_vendors"], list):
@@ -31,7 +27,6 @@ def interpret_policy(policy_text):
     blocked = []
     allowed = ["USD", "EUR", "INR"]
 
-    import re
     match_amount = re.search(r"(\d{3,6})", policy_text)
     if match_amount:
         max_amount = int(match_amount.group(1))
