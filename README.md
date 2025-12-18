@@ -1,37 +1,37 @@
-# 🔒 Governed AI Execution Engine
+# Governed AI Execution Engine
 
 A sophisticated AI-powered system that enables **safe, governed, and auditable** execution of natural language queries against sensitive databases. Combines natural language processing, policy-based governance, and comprehensive audit logging to ensure compliance and data protection.
 
 ![Architecture](https://img.shields.io/badge/Architecture-Microservices-blue) ![Python](https://img.shields.io/badge/Python-3.8+-green) ![FastAPI](https://img.shields.io/badge/FastAPI-0.100+-red) ![Streamlit](https://img.shields.io/badge/Streamlit-1.0+-orange)
 
-## 🌟 Key Features
+##  Key Features
 
-### 🤖 Natural Language Query Processing
+###  Natural Language Query Processing
 - **NL-to-SQL Conversion**: Transform plain English questions into optimized SQL queries
 - **Multi-Agent Architecture**: Specialized agents for interpretation, governance, and risk assessment
 - **LangGraph Workflow**: Orchestrated execution pipeline using state-of-the-art graph-based workflows
 
-### 🛡️ Policy-Based Governance
+###  Policy-Based Governance
 - **Configurable Policies**: Define data access rules, PII restrictions, and row limits
 - **Real-time Enforcement**: Automatic policy application during query execution
 - **Policy Playground**: Test governance policies with "what-if" simulations before deployment
 
-### 🔍 Sandbox Simulation
+###  Sandbox Simulation
 - **Query Impact Analysis**: Preview query results, accessed columns, and performance metrics
 - **PII Detection**: Automatic identification of personally identifiable information
 - **Risk Assessment**: Evaluate query risk scores based on data sensitivity and access patterns
 
-### 📊 Comprehensive Audit Logging
+###  Comprehensive Audit Logging
 - **Full Traceability**: Complete audit trail of all queries, decisions, and policy applications
 - **Invoice Compliance**: Specialized auditing for financial transactions and vendor approvals
 - **Interactive Viewer**: Web-based audit log explorer with filtering and search capabilities
 
-### 🎨 Modern Web Interface
+###  Modern Web Interface
 - **Streamlit UI**: Intuitive web interface for query composition and result visualization
 - **Policy Management**: Visual policy editor and testing environment
 - **Real-time Monitoring**: Live audit log streaming and compliance dashboards
 
-## 🏗️ Architecture
+##  Architecture
 
 ```
 ┌─────────────────┐    ┌──────────────────┐    ┌─────────────────┐
@@ -57,35 +57,35 @@ A sophisticated AI-powered system that enables **safe, governed, and auditable**
 
 ### Core Components
 
-#### 🤖 Agent System (`agents/`)
+####  Agent System (`agents/`)
 - **NaturalLanguageAgent**: Converts natural language to SQL using Groq LLM
 - **PolicyInterpreterAgent**: Parses policy text into structured rules
 - **GovernanceDecisionAgent**: Makes allow/deny decisions based on policies
 - **RiskAssessmentAgent**: Evaluates query risk levels
 - **RemediationAgent**: Suggests policy adjustments and query modifications
 
-#### 🔄 Orchestration (`agentic/`)
+####  Orchestration (`agentic/`)
 - **LangGraph Workflow**: Directed acyclic graph for agent coordination
 - **State Management**: Persistent state tracking across agent interactions
 - **Node Execution**: Modular execution units for different processing stages
 
-#### 🚀 API Server (`api/`)
+####  API Server (`api/`)
 - **RESTful Endpoints**: Comprehensive API for all system operations
 - **Policy Management**: CRUD operations for governance policies
 - **Simulation Engine**: Query simulation without database impact
 - **Audit Integration**: Real-time logging of all operations
 
-#### 🎨 User Interface (`ui/`)
+####  User Interface (`ui/`)
 - **Query Interface**: Natural language input with SQL preview
 - **Policy Playground**: Interactive policy testing and deployment
 - **Audit Dashboard**: Comprehensive log viewing and analysis
 
-#### 🔧 Core Systems (`core/`)
+####  Core Systems (`core/`)
 - **Sandbox Manager**: Isolated query execution and analysis
 - **Audit Logger**: Structured logging with JSON serialization
 - **PII Classifier**: Automatic sensitive data detection
 
-## 🚀 Quick Start
+##  Quick Start
 
 ### Prerequisites
 - Python 3.8+
@@ -172,7 +172,7 @@ curl -X POST "http://localhost:8000/policy/what_if" \
   }'
 ```
 
-## 🔧 Configuration
+##  Configuration
 
 ### Environment Variables
 ```bash
@@ -197,7 +197,7 @@ Policies are defined in JSON format with the following structure:
 }
 ```
 
-## 🧪 Testing
+##  Testing
 
 ### Run Test Suite
 ```bash
@@ -217,7 +217,7 @@ python -m pytest tests/api/
 3. **Load Testing**: Simulate multiple concurrent users
 4. **Security Testing**: Attempt to bypass governance controls
 
-## 🔒 Security & Compliance
+##  Security & Compliance
 
 ### Data Protection
 - **PII Detection**: Automatic identification and blocking of sensitive data
@@ -229,7 +229,7 @@ python -m pytest tests/api/
 - **SOX Compliance**: Financial data access controls and audit trails
 - **Industry Standards**: SOC 2 Type II ready architecture
 
-## 📈 Performance & Scalability
+##  Performance & Scalability
 
 ### Optimization Features
 - **Query Caching**: Intelligent caching of frequently accessed data
@@ -241,7 +241,7 @@ python -m pytest tests/api/
 - **Error Tracking**: Comprehensive error logging and alerting
 - **Health Checks**: Automated system health monitoring
 
-## 🤝 Contributing
+##  Contributing
 
 1. Fork the repository
 2. Create a feature branch (`git checkout -b feature/amazing-feature`)
@@ -255,18 +255,18 @@ python -m pytest tests/api/
 - **Documentation**: Update docs for all new features
 - **Security**: All changes must pass security review
 
-## 📄 License
+##  License
 
 This project is licensed under the MIT License - see the [LICENSE](LICENSE) file for details.
 
-## 🙏 Acknowledgments
+##  Acknowledgments
 
 - **LangGraph**: For the powerful agent orchestration framework
 - **Groq**: For ultra-fast LLM inference
 - **FastAPI**: For the robust API framework
 - **Streamlit**: For the beautiful web interface
 
-## 📞 Support
+##  Support
 
 - **Issues**: [GitHub Issues](https://github.com/your-org/governed-ai-execution-engine/issues)
 - **Discussions**: [GitHub Discussions](https://github.com/your-org/governed-ai-execution-engine/discussions)
