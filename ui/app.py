@@ -2,7 +2,7 @@ import streamlit as st
 import requests
 import pandas as pd
 
-API_BASE = "http://127.0.0.1:8000"
+API_BASE = "https://governed-ai-execution-engine.onrender.com"
 
 st.set_page_config(
     page_title="Governed AI Execution Engine",
