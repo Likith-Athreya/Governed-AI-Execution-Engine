@@ -1,6 +1,6 @@
 class PIIClassifier:
     PII_KEYWORDS = [
-        "ssn", "aadhaar", "passport", "credit_card", "phone", "email", "address", "driver_license", "pan"]
+        "ssn", "aadhaar", "passport", "credit_card", "phone", "email", "address", "driver_license", "pan", "amount"]
     FINANCIAL_KEYWORDS = ["credit", "debit", "account", "bank", "ifsc", "upi", "balance"]
 
     def classify_column(self, column_name: str)-> str:

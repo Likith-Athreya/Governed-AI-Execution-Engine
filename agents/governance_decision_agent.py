@@ -1,3 +1,5 @@
+from catalog.pii_classifier import PIIClassifier
+
 class GovernanceDecisionAgent:
     def decide(self, sandbox_result: dict, policy: dict)-> dict:
         classifications = sandbox_result.get("column_classification", {})
