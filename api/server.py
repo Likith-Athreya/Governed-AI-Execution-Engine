@@ -10,6 +10,7 @@ from agents.nl_interface_agent import NaturalLanguageAgent
 from core.audit_logger import log_audit
 from core.audit_logger import init_db
 from core.audit_logger import DB_PATH
+from agents.policy_interpreter_agent import PolicyInterpreterAgent
 
 db_path = DB_PATH
 
@@ -34,7 +35,11 @@ POLICY = {
     "max_rows": 100
 }
 
-kernel = ExecutionKernel(POLICY)
+# Active policy can be updated at runtime via /policy/activate
+ACTIVE_POLICY = POLICY
+
+# Kernel always reads from the current active policy
+kernel = ExecutionKernel(ACTIVE_POLICY)
 
 class NLRequest(BaseModel):
     user_input: str
@@ -46,6 +51,15 @@ class ExecuteRequest(BaseModel):
     sql: str
     simulation: dict
     user_input: str
+
+class PolicyNLRequest(BaseModel):
+    policy_text: str
+
+from pydantic import BaseModel
+
+class WhatIfRequest(BaseModel):
+    policy: dict
+    sql: str
 
 @app.post("/nl_to_sql")
 def nl_to_sql(req: NLRequest):
@@ -111,27 +125,22 @@ def execute(req: ExecuteRequest):
     try:
         result = kernel.run_sql(req.sql, req.simulation)
         
-        # Extract decision and reason for audit logging
         status = result.get("status", "UNKNOWN")
         decision = "DENIED" if status == "DENIED" else "ALLOWED"
         reason = result.get("reason", "")
         
-        # If governance result is available, use its decision and explanation
         if "governance" in result:
             governance = result["governance"]
             if "decision" in governance:
                 gov_decision = governance["decision"].get("decision", "")
-                # Normalize decision values: DENY -> DENIED, others keep as is
                 if gov_decision == "DENY":
                     decision = "DENIED"
                 elif gov_decision:
                     decision = gov_decision
                 reason = governance["decision"].get("explanation", reason)
         elif status == "DENIED" and "reason" in result:
-            # Use direct reason for DENIED cases without governance (e.g., invalid simulation)
             reason = result["reason"]
         
-        # Log audit entry
         log_audit(
             user_input=req.user_input,
             sql=req.sql,
@@ -166,12 +175,10 @@ def get_audit_logs(limit: int = 50):
         logs = []
         for row in rows:
             try:
-                # Handle missing or null simulation field
                 simulation_data = row[5] if row[5] else "{}"
                 try:
                     simulation = json.loads(simulation_data)
                 except (json.JSONDecodeError, TypeError):
-                    # If JSON parsing fails, use empty dict
                     simulation = {}
                 
                 logs.append({
@@ -183,10 +190,47 @@ def get_audit_logs(limit: int = 50):
                     "simulation": simulation
                 })
             except Exception as e:
-                # Skip malformed rows but continue processing others
                 continue
 
         return logs
     except Exception as e:
-        # Return empty list on any database or connection errors
         return []
+
+@app.post("/policy/interpreter")
+def interpret_policy(req: PolicyNLRequest):
+    policy = PolicyInterpreterAgent().interpret(req.policy_text)
+    return{
+        "status": "ok",
+        "policy": policy
+    }
+
+@app.post("/policy/activate")
+def activate_policy(policy: dict):
+    global ACTIVE_POLICY
+    ACTIVE_POLICY = policy
+    # Also update the existing kernel instance so new executions use this policy
+    kernel.policy = ACTIVE_POLICY
+    return {"status": "activated", "policy": ACTIVE_POLICY}
+
+@app.post("/policy/what_if")
+def what_if(req: WhatIfRequest):
+    sandbox = SandboxManager(SCHEMA)
+    simulation = sandbox.simulate_query(req.sql)
+    sandbox.teardown()
+
+    temp_kernel = ExecutionKernel(req.policy)
+    decision =temp_kernel.run_sql(req.sql, simulation)
+
+    llm_explanation = PolicyInterpreterAgent().explain_effect(
+        policy = req.policy,
+        simulation = simulation,
+        decision = decision
+    )       
+
+    return{
+        "simulation": simulation,
+        "decision_under_policy": decision["status"],
+        "lm_explanation": llm_explanation,
+    }
+
+    
