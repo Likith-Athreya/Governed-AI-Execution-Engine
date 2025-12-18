@@ -4,7 +4,6 @@ import pandas as pd
 
 API_BASE = "http://127.0.0.1:8000"
 
-# Must be the first Streamlit command
 st.set_page_config(
     page_title="Governed AI Execution Engine",
     layout="wide"
@@ -131,12 +130,15 @@ if page == "Main":
                         st.markdown("### Query Result")
                         data = result.get("data")
 
-                        if data and "columns" in data and "rows" in data:
-                            df = pd.DataFrame(data["rows"], columns=data["columns"])
-                            st.dataframe(df, use_container_width=True)
-                            st.caption(f"Rows returned: {len(df)}")
+                        if data and "columns" in data and "rows" in data and len(data["columns"]) > 0:
+                            if len(data["rows"]) > 0:
+                                df = pd.DataFrame(data["rows"], columns=data["columns"])
+                                st.dataframe(df, use_container_width=True)
+                                st.caption(f"Rows returned: {len(df)}")
+                            else:
+                                st.info("Query returned no rows")
                         else:
-                            st.info("No data returned")
+                            st.info("No data returned (all columns may be blocked)")
 
                     else:
                         st.error("Execution denied")
@@ -147,7 +149,6 @@ if page == "Main":
 if page == "Audit Logs":
     st.subheader("AUDIT LOG VIEWER")
 
-    # Auto-load logs on page load if not already loaded
     if "audit_logs" not in st.session_state:
         try:
             res = requests.get(f"{API_BASE}/audit_logs", timeout=5)
@@ -165,7 +166,6 @@ if page == "Audit Logs":
             st.session_state["audit_logs"] = []
             st.session_state["audit_logs_error"] = f"Error loading audit logs: {str(e)}"
 
-    # Refresh button
     col1, col2 = st.columns([1, 10])
     with col1:
         if st.button("🔄 Refresh"):
@@ -187,7 +187,6 @@ if page == "Audit Logs":
                 st.session_state["audit_logs"] = []
                 st.session_state["audit_logs_error"] = f"Error loading audit logs: {str(e)}"
 
-    # Display logs
     logs_list = st.session_state.get("audit_logs", [])
     error = st.session_state.get("audit_logs_error")
 
@@ -223,12 +222,17 @@ if page == "Policy Playground":
 
     policy_text = st.text_area(
         "Describe a governance policy",
-        placeholder="Bllock access to PII and limit rows to 10",
+        placeholder="Block access to PII and limit rows to 10",
         height=100
     )
 
-    if st.button("Interpret Policy"):
-        with st.spinner("Interpreting policy..."):
+    if st.button("Interpret & Run What-if"):
+        # Use a representative query that touches multiple tables; no dependency on Main page
+        representative_sql = "SELECT v.id, v.vendor_name, v.country, t.amount FROM vendors v JOIN transactions t ON v.id = t.vendor_id ORDER BY t.amount DESC LIMIT 1"
+
+        with st.spinner("Interpreting policy and analyzing its impact on data access..."):
+
+            # 1) Interpret the policy
             res = requests.post(
                 f"{API_BASE}/policy/interpreter",
                 json={"policy_text": policy_text}
@@ -245,39 +249,58 @@ if page == "Policy Playground":
                 st.json(data)
                 st.stop()
 
-            st.session_state["what_if_policy"] = data["policy"]
+            policy = data["policy"]
+            st.session_state["what_if_policy"] = policy
 
-            st.success("Policy Interpreted successfully")
-            st.markdown("POLICY JSON")
-            st.json(data["policy"])
+            # 2) Run what-if once against the representative query
+            res = requests.post(
+                f"{API_BASE}/policy/what_if",
+                json={
+                    "policy": policy,
+                    "sql": representative_sql,
+                },
+            )
 
-    if "what_if_policy" in st.session_state and "plan" in st.session_state:
-        st.subheader("What-if simulation result")
+            if res.status_code != 200:
+                st.error("What-if simulation failed")
+                st.text(res.text)
+                st.stop()
 
-        if st.button("Run What-if button"):
-            with st.spinner("Simulating policy impact"):
+            result = res.json()
+
+        st.success("Policy interpreted and what-if analysis completed.")
+        st.markdown("**Policy JSON**")
+        st.json(policy)
+
+        # Show LLM explanation if present
+        llm_explanation = result.get("llm_explanation")
+        if llm_explanation:
+            st.markdown("**LLM Explanation**")
+            st.write(llm_explanation)
+
+        st.markdown("**Simulation Result**")
+        st.json(result)
+
+    # Allow activating the last interpreted policy as the live governance policy
+    if "what_if_policy" in st.session_state:
+        st.markdown("---")
+        st.markdown("### Activate this policy")
+        st.caption("Apply the interpreted policy as the active governance policy for all future executions.")
+
+        if st.button("Activate Policy"):
+            with st.spinner("Activating policy..."):
                 res = requests.post(
-                    f"{API_BASE}/policy/what_if",
-                    json={
-                        "policy": st.session_state["what_if_policy"],
-                        "sql": st.session_state["plan"]["sql"]
-                    },
+                    f"{API_BASE}/policy/activate",
+                    json=st.session_state["what_if_policy"],
                 )
 
                 if res.status_code != 200:
-                    st.error("What-if simulation failed")
+                    st.error("Policy activation failed")
                     st.text(res.text)
-                    st.stop()
-
-                result = res.json()
-
-                llm_explanation = result.get("llm_explanation")
-                if llm_explanation:
-                    st.markdown("**LLM Explanation**")
-                    st.write(llm_explanation)
-
-                st.markdown("**Simulation Result**")
-                st.json(result)
+                else:
+                    data = res.json()
+                    st.success("Policy activated. New active policy:")
+                    st.json(data.get("policy", {}))
 
 
     

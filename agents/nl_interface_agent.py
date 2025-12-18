@@ -60,7 +60,6 @@ intent, action, sql
         content = response.json()["choices"][0]["message"]["content"]
 
         try:
-            # Remove markdown code blocks if present
             if content.startswith("```"):
                 content = content.split("```")[1]
                 if content.startswith("json"):

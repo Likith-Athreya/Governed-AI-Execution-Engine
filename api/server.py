@@ -14,6 +14,24 @@ from agents.policy_interpreter_agent import PolicyInterpreterAgent
 
 db_path = DB_PATH
 
+# Path to persist active policy
+ACTIVE_POLICY_FILE = os.path.join(os.path.dirname(__file__), "..", "data", "policies", "active_policy.json")
+
+def load_persisted_policy():
+    """Load active policy from file if it exists."""
+    if os.path.exists(ACTIVE_POLICY_FILE):
+        try:
+            with open(ACTIVE_POLICY_FILE, "r") as f:
+                return json.load(f)
+        except Exception:
+            pass
+    return None
+
+def save_policy_to_file(policy: dict):
+    """Persist active policy to file."""
+    os.makedirs(os.path.dirname(ACTIVE_POLICY_FILE), exist_ok=True)
+    with open(ACTIVE_POLICY_FILE, "w") as f:
+        json.dump(policy, f, indent=2)
 
 init_db()
 
@@ -22,23 +40,52 @@ app = FastAPI(title="Governed AI Execution Engine")
 nl_agent = NaturalLanguageAgent()
 
 SCHEMA = {
-    "customers": {
+    "accounts": {
         "id": "INTEGER",
-        "name": "TEXT",
-        "email": "TEXT",
-        "ssn": "TEXT",
-        "salary": "INTEGER"
+        "account_name": "TEXT",
+        "account_type": "TEXT",
+        "currency": "TEXT",
+        "balance": "REAL",
+        "risk_level": "TEXT",
+        "created_at": "TEXT"
+    },
+
+    "vendors": {
+        "id": "INTEGER",
+        "vendor_name": "TEXT",
+        "country": "TEXT",
+        "is_blocked": "INTEGER",
+        "risk_score": "INTEGER",
+        "created_at": "TEXT"
+    },
+
+    "transactions": {
+        "id": "INTEGER",
+        "account_id": "INTEGER",
+        "vendor_id": "INTEGER",
+        "amount": "REAL",
+        "currency": "TEXT",
+        "transaction_type": "TEXT",
+        "category": "TEXT",
+        "transaction_date": "TEXT",
+        "approved_by": "TEXT"
+    },
+
+    "budgets": {
+        "id": "INTEGER",
+        "department": "TEXT",
+        "category": "TEXT",
+        "monthly_limit": "REAL",
+        "fiscal_year": "INTEGER"
     }
 }
 
-POLICY = {
+DEFAULT_POLICY = {
     "max_rows": 100
 }
 
-# Active policy can be updated at runtime via /policy/activate
-ACTIVE_POLICY = POLICY
-
-# Kernel always reads from the current active policy
+# Load persisted policy or use default
+ACTIVE_POLICY = load_persisted_policy() or DEFAULT_POLICY
 kernel = ExecutionKernel(ACTIVE_POLICY)
 
 class NLRequest(BaseModel):
@@ -61,9 +108,17 @@ class WhatIfRequest(BaseModel):
     policy: dict
     sql: str
 
+def build_schema_hint(schema: dict) -> str:
+    """Build a schema hint string from the SCHEMA dict for the LLM."""
+    hints = []
+    for table, columns in schema.items():
+        col_list = ", ".join(columns.keys())
+        hints.append(f"{table}({col_list})")
+    return ", ".join(hints)
+
 @app.post("/nl_to_sql")
 def nl_to_sql(req: NLRequest):
-    schema_hint = "customers(id, name, email, ssn, salary)"
+    schema_hint = build_schema_hint(SCHEMA)
 
     plan = nl_agent.interpret(
         user_input=req.user_input,
@@ -85,7 +140,7 @@ def nl_to_sql(req: NLRequest):
 
 @app.post("/nl_simulate")
 def nl_simulate(req: NLRequest):
-    schema_hint = "customers(id, name, email, ssn, salary)"
+    schema_hint = build_schema_hint(SCHEMA)
 
     plan = nl_agent.interpret(
         user_input=req.user_input,
@@ -104,6 +159,12 @@ def nl_simulate(req: NLRequest):
     simulation = sandbox.simulate_query(sql)
     sandbox.teardown()
 
+    # Mark blocked columns in the classification
+    blocked_cols = set(ACTIVE_POLICY.get("blocked_columns", []))
+    for col in simulation.get("columns_accessed", []):
+        if col in blocked_cols:
+            simulation["column_classification"][col] = "BLOCKED"
+
     return {
         "status": "ok",
         "plan": plan,
@@ -115,6 +176,12 @@ def simulate(req: SimulateRequest):
     sandbox = SandboxManager(SCHEMA)
     simulation = sandbox.simulate_query(req.sql)
     sandbox.teardown()
+
+    # Mark blocked columns in the classification
+    blocked_cols = set(ACTIVE_POLICY.get("blocked_columns", []))
+    for col in simulation.get("columns_accessed", []):
+        if col in blocked_cols:
+            simulation["column_classification"][col] = "BLOCKED"
 
     return {
         "simulation": simulation
@@ -210,7 +277,25 @@ def activate_policy(policy: dict):
     ACTIVE_POLICY = policy
     # Also update the existing kernel instance so new executions use this policy
     kernel.policy = ACTIVE_POLICY
+    # Persist to file so it survives restarts
+    save_policy_to_file(ACTIVE_POLICY)
     return {"status": "activated", "policy": ACTIVE_POLICY}
+
+@app.post("/policy/reset")
+def reset_policy():
+    """Reset to default policy and remove persisted policy file."""
+    global ACTIVE_POLICY
+    ACTIVE_POLICY = DEFAULT_POLICY
+    kernel.policy = ACTIVE_POLICY
+    # Remove persisted file
+    if os.path.exists(ACTIVE_POLICY_FILE):
+        os.remove(ACTIVE_POLICY_FILE)
+    return {"status": "reset", "policy": ACTIVE_POLICY}
+
+@app.get("/policy/current")
+def get_current_policy():
+    """Get the currently active policy."""
+    return {"policy": ACTIVE_POLICY}
 
 @app.post("/policy/what_if")
 def what_if(req: WhatIfRequest):
@@ -233,4 +318,9 @@ def what_if(req: WhatIfRequest):
         "lm_explanation": llm_explanation,
     }
 
-    
+@app.get("/")
+def root():
+    return {
+        "status": "running",
+        "service": "Governed AI Execution Engine"
+    }

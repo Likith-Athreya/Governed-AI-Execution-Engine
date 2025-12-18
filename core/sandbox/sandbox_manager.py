@@ -18,20 +18,34 @@ class SandboxManager:
             self.cursor.execute(f"CREATE TABLE {table} ({cols});")
 
     def _load_synthetic_data(self, rows: int = 20):
-        for table in self.schema.keys():
+        for table, columns in self.schema.items():
+            num_cols = len(columns)
+            placeholders = ", ".join(["?"] * num_cols)
+            
             for i in range(rows):
+                # Generate synthetic data based on column count and type
+                values = []
+                for col_idx, (col_name, col_type) in enumerate(columns.items()):
+                    if col_idx == 0:  # First column is usually ID
+                        values.append(i + 1)
+                    elif "name" in col_name.lower() or "vendor" in col_name.lower():
+                        values.append(f"{table}_{i}")
+                    elif "email" in col_name.lower():
+                        values.append(f"user{i}@example.com")
+                    elif "date" in col_name.lower() or "created" in col_name.lower():
+                        values.append("2025-01-01")
+                    elif "amount" in col_name.lower() or "balance" in col_name.lower() or "limit" in col_name.lower():
+                        values.append(1000.0 + i * 100)
+                    elif "INTEGER" in col_type.upper():
+                        values.append(i + 1)
+                    elif "REAL" in col_type.upper():
+                        values.append(100.0 + i)
+                    else:
+                        values.append(f"value_{i}")
+                
                 self.cursor.execute(
-                    f"""
-                    INSERT INTO {table}
-                    VALUES (?, ?, ?, ?, ?)
-                    """,
-                    (
-                        i,
-                        f"user{i}",
-                        f"user{i}@example.com",
-                        f"XXX-XX-{1000+i}",
-                        50000 + i * 1000
-                    )
+                    f"INSERT INTO {table} VALUES ({placeholders})",
+                    tuple(values)
                 )
 
     def simulate_query(self, query: str):

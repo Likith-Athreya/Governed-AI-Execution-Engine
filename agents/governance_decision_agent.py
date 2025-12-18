@@ -5,32 +5,35 @@ class GovernanceDecisionAgent:
         accessed_columns = set(sandbox_result.get("columns_accessed", []))
         explanation = []
 
-        if "PII" in accessed_types:
-            explanation.append("Query accessed PII data.")
+        pii_accessed = "PII" in accessed_types
         
-        # Deny if policy forbids PII access (support both legacy and new keys)
-        if policy.get("deny_pii_access", False) or policy.get("deny_pii", False):
-            explanation.append("Policy denies access to PII data.")
-            return {
-                "decision": "DENY",
-                "explanation": " ".join(explanation)
-            }
-        if policy.get("mask_pii", False):
-            explanation.append("Policy requires masking of PII data.")
-            return {
-                "decision": "ALLOW_WITH_MASKING",
-                "explanation": " ".join(explanation)
-            }
+        if pii_accessed:
+            explanation.append("Query accessed PII data.")
+            
+            # Deny if policy forbids PII access (support both legacy and new keys)
+            if policy.get("deny_pii_access", False) or policy.get("deny_pii", False):
+                explanation.append("Policy denies access to PII data.")
+                return {
+                    "decision": "DENY",
+                    "explanation": " ".join(explanation)
+                }
+            if policy.get("mask_pii", False):
+                explanation.append("Policy requires masking of PII data.")
+                return {
+                    "decision": "ALLOW_WITH_MASKING",
+                    "explanation": " ".join(explanation)
+                }
 
-        # Deny if any accessed column is explicitly blocked in policy
+        # If any accessed column is blocked, allow but filter those columns from results
         blocked_columns = set(policy.get("blocked_columns", []))
         violated_blocked = sorted(accessed_columns & blocked_columns)
         if violated_blocked:
             explanation.append(
-                f"Query accessed blocked column(s): {', '.join(violated_blocked)}."
+                f"Blocked column(s) will be filtered from results: {', '.join(violated_blocked)}."
             )
             return {
-                "decision": "DENY",
+                "decision": "ALLOW_WITH_FILTERING",
+                "columns_to_filter": violated_blocked,
                 "explanation": " ".join(explanation)
             }
 
