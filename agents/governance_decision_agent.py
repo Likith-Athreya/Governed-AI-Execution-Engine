@@ -24,7 +24,6 @@ class GovernanceDecisionAgent:
                     "explanation": " ".join(explanation)
                 }
 
-        # If any accessed column is blocked, allow but filter those columns from results
         blocked_columns = set(policy.get("blocked_columns", []))
         violated_blocked = sorted(accessed_columns & blocked_columns)
         if violated_blocked:
