@@ -227,12 +227,10 @@ if page == "Policy Playground":
     )
 
     if st.button("Interpret & Run What-if"):
-        # Use a representative query that touches multiple tables; no dependency on Main page
         representative_sql = "SELECT v.id, v.vendor_name, v.country, t.amount FROM vendors v JOIN transactions t ON v.id = t.vendor_id ORDER BY t.amount DESC LIMIT 1"
 
         with st.spinner("Interpreting policy and analyzing its impact on data access..."):
 
-            # 1) Interpret the policy
             res = requests.post(
                 f"{API_BASE}/policy/interpreter",
                 json={"policy_text": policy_text}
@@ -252,7 +250,6 @@ if page == "Policy Playground":
             policy = data["policy"]
             st.session_state["what_if_policy"] = policy
 
-            # 2) Run what-if once against the representative query
             res = requests.post(
                 f"{API_BASE}/policy/what_if",
                 json={
@@ -272,7 +269,6 @@ if page == "Policy Playground":
         st.markdown("**Policy JSON**")
         st.json(policy)
 
-        # Show LLM explanation if present
         llm_explanation = result.get("llm_explanation")
         if llm_explanation:
             st.markdown("**LLM Explanation**")
@@ -281,7 +277,6 @@ if page == "Policy Playground":
         st.markdown("**Simulation Result**")
         st.json(result)
 
-    # Allow activating the last interpreted policy as the live governance policy
     if "what_if_policy" in st.session_state:
         st.markdown("---")
         st.markdown("### Activate this policy")
@@ -301,7 +296,3 @@ if page == "Policy Playground":
                     data = res.json()
                     st.success("Policy activated. New active policy:")
                     st.json(data.get("policy", {}))
-
-
-    
-
