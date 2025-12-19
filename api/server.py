@@ -14,7 +14,6 @@ from agents.policy_interpreter_agent import PolicyInterpreterAgent
 
 db_path = DB_PATH
 
-# Path to persist active policy
 ACTIVE_POLICY_FILE = os.path.join(os.path.dirname(__file__), "..", "data", "policies", "active_policy.json")
 
 def load_persisted_policy():
