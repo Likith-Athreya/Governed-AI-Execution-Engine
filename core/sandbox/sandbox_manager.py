@@ -8,7 +8,6 @@ class SandboxManager:
         self.conn = sqlite3.connect(":memory:")
         self.cursor = self.conn.cursor()
         self.classifier = PIIClassifier()
-
         self._load_schema()
         self._load_synthetic_data()
 
@@ -23,7 +22,6 @@ class SandboxManager:
             placeholders = ", ".join(["?"] * num_cols)
             
             for i in range(rows):
-                # Generate synthetic data based on column count and type
                 values = []
                 for col_idx, (col_name, col_type) in enumerate(columns.items()):
                     if col_idx == 0:  # First column is usually ID
