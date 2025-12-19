@@ -4,7 +4,6 @@ from catalog.pii_classifier import PIIClassifier
 from core.audit_logger import log_audit
 from agentic.governance_orchestrator import GovernanceOrchestrator
 
-
 class ExecutionKernel:
     """
     The single source of truth for governed execution.
@@ -108,7 +107,6 @@ class ExecutionKernel:
         rows = query_result.get("rows", [])
         columns = query_result.get("columns", simulation.get("columns_accessed", []))
 
-        # Filter out blocked columns if decision is ALLOW_WITH_FILTERING
         if decision == "ALLOW_WITH_FILTERING":
             cols_to_filter = set(governance_result["decision"].get("columns_to_filter", []))
             if cols_to_filter and columns:
