@@ -5,10 +5,6 @@ from core.audit_logger import log_audit
 from agentic.governance_orchestrator import GovernanceOrchestrator
 
 class ExecutionKernel:
-    """
-    The single source of truth for governed execution.
-    NOTHING executes without passing through this kernel.
-    """
 
     def __init__(self, policy: dict):
         self.policy = policy
@@ -16,19 +12,12 @@ class ExecutionKernel:
         self.pii_classifier = PIIClassifier()
 
     def extract_columns(self, sql: str) -> list:
-        """
-        Extract columns from a SELECT query for additional safety checks.
-        """
         match = re.search(r"select\s+(.*?)\s+from", sql, re.IGNORECASE)
         if not match:
             return []
         return [c.strip() for c in match.group(1).split(",")]
 
     def run_sql(self, sql: str, simulation: dict) -> dict:
-        """
-        Execute SQL ONLY if simulation + governance approve it.
-        """
-
         if not simulation.get("valid", False):
             log_audit(
                 user_input=None,
