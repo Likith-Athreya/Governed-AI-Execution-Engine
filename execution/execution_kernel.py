@@ -99,10 +99,8 @@ class ExecutionKernel:
         if decision == "ALLOW_WITH_FILTERING":
             cols_to_filter = set(governance_result["decision"].get("columns_to_filter", []))
             if cols_to_filter and columns:
-                # Get indices of columns to keep
                 keep_indices = [i for i, col in enumerate(columns) if col not in cols_to_filter]
                 columns = [columns[i] for i in keep_indices]
-                # Filter rows - convert each row to a list with only kept columns
                 filtered_rows = []
                 for row in rows:
                     filtered_row = [row[i] for i in keep_indices]
