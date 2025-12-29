@@ -1,5 +1,5 @@
 {
-  "max_rows": null,
+  "max_rows": true,
   "deny_pii": true,
   "blocked_columns": [],
   "allowed_tables": [
