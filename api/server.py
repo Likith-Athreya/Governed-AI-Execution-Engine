@@ -17,7 +17,6 @@ db_path = DB_PATH
 ACTIVE_POLICY_FILE = os.path.join(os.path.dirname(__file__), "..", "data", "policies", "active_policy.json")
 
 def load_persisted_policy():
-    """Load active policy from file if it exists."""
     if os.path.exists(ACTIVE_POLICY_FILE):
         try:
             with open(ACTIVE_POLICY_FILE, "r") as f:
@@ -27,7 +26,6 @@ def load_persisted_policy():
     return None
 
 def save_policy_to_file(policy: dict):
-    """Persist active policy to file."""
     os.makedirs(os.path.dirname(ACTIVE_POLICY_FILE), exist_ok=True)
     with open(ACTIVE_POLICY_FILE, "w") as f:
         json.dump(policy, f, indent=2)
@@ -108,7 +106,6 @@ class WhatIfRequest(BaseModel):
     sql: str
 
 def build_schema_hint(schema: dict) -> str:
-    """Build a schema hint string from the SCHEMA dict for the LLM."""
     hints = []
     for table, columns in schema.items():
         col_list = ", ".join(columns.keys())
@@ -157,8 +154,6 @@ def nl_simulate(req: NLRequest):
     sandbox = SandboxManager(SCHEMA)
     simulation = sandbox.simulate_query(sql)
     sandbox.teardown()
-
-    # Mark blocked columns in the classification
     blocked_cols = set(ACTIVE_POLICY.get("blocked_columns", []))
     for col in simulation.get("columns_accessed", []):
         if col in blocked_cols:
@@ -282,7 +277,6 @@ def activate_policy(policy: dict):
 
 @app.post("/policy/reset")
 def reset_policy():
-    """Reset to default policy and remove persisted policy file."""
     global ACTIVE_POLICY
     ACTIVE_POLICY = DEFAULT_POLICY
     kernel.policy = ACTIVE_POLICY
@@ -293,7 +287,6 @@ def reset_policy():
 
 @app.get("/policy/current")
 def get_current_policy():
-    """Get the currently active policy."""
     return {"policy": ACTIVE_POLICY}
 
 @app.post("/policy/what_if")
