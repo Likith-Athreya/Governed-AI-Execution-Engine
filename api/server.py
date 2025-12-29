@@ -3,7 +3,6 @@ from pydantic import BaseModel
 import sqlite3
 import json
 import os
-
 from core.sandbox.sandbox_manager import SandboxManager
 from execution.execution_kernel import ExecutionKernel
 from agents.nl_interface_agent import NaturalLanguageAgent
@@ -81,7 +80,6 @@ DEFAULT_POLICY = {
     "max_rows": 100
 }
 
-# Load persisted policy or use default
 ACTIVE_POLICY = load_persisted_policy() or DEFAULT_POLICY
 kernel = ExecutionKernel(ACTIVE_POLICY)
 
@@ -171,7 +169,6 @@ def simulate(req: SimulateRequest):
     simulation = sandbox.simulate_query(req.sql)
     sandbox.teardown()
 
-    # Mark blocked columns in the classification
     blocked_cols = set(ACTIVE_POLICY.get("blocked_columns", []))
     for col in simulation.get("columns_accessed", []):
         if col in blocked_cols:
@@ -269,9 +266,7 @@ def interpret_policy(req: PolicyNLRequest):
 def activate_policy(policy: dict):
     global ACTIVE_POLICY
     ACTIVE_POLICY = policy
-    # Also update the existing kernel instance so new executions use this policy
     kernel.policy = ACTIVE_POLICY
-    # Persist to file so it survives restarts
     save_policy_to_file(ACTIVE_POLICY)
     return {"status": "activated", "policy": ACTIVE_POLICY}
 
@@ -280,7 +275,6 @@ def reset_policy():
     global ACTIVE_POLICY
     ACTIVE_POLICY = DEFAULT_POLICY
     kernel.policy = ACTIVE_POLICY
-    # Remove persisted file
     if os.path.exists(ACTIVE_POLICY_FILE):
         os.remove(ACTIVE_POLICY_FILE)
     return {"status": "reset", "policy": ACTIVE_POLICY}
