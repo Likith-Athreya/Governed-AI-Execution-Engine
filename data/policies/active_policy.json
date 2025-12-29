@@ -1,6 +1,6 @@
 {
   "max_rows": null,
-  "deny_pii": false,
+  "deny_pii": true,
   "blocked_columns": [],
   "allowed_tables": [
     "transactions"
