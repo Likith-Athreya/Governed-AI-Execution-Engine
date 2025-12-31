@@ -4,6 +4,7 @@ from catalog.pii_classifier import PIIClassifier
 from core.audit_logger import log_audit
 from agentic.governance_orchestrator import GovernanceOrchestrator
 
+
 class ExecutionKernel:
 
     def __init__(self, policy: dict):
