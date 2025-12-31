@@ -6,20 +6,24 @@ GROQ_API = os.getenv("GROQ_API_KEY")
 model = "meta-llama/llama-4-maverick-17b-128e-instruct"
 
 class PolicyInterpreterAgent:
-    def interpret(self, policy_text: str)-> dict:
+    def interpret(self, policy_text: str, schema: dict = None) -> dict:
+        schema_hint = ""
+        if schema:
+            hints = []
+            for table, columns in schema.items():
+                col_list = ", ".join(columns.keys())
+                hints.append(f"{table}({col_list})")
+            schema_hint = f"\n\nDatabase Schema:\n" + "\n".join(hints)
+        
         prompt = f"""
 You are an enterprise governance policy interpreter.
 
-Convert the policy into STRICT JSON.
+Convert the policy into STRICT JSON using ONLY real table/column names from the schema.
 Rules:
 - Output ONLY valid JSON
-- No markdown
-- No explanations
-- Use only these keys:
-  - max_rows (int or null)
-  - deny_pii (boolean)
-  - blocked_columns (array of strings)
-  - allowed_tables (array of strings)
+- No markdown, no explanations  
+- Use only these keys: max_rows, deny_pii, blocked_columns, allowed_tables
+- blocked_columns and allowed_tables must use exact names from schema{schema_hint}
 
 Policy:
 {policy_text}
