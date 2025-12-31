@@ -256,7 +256,7 @@ def get_audit_logs(limit: int = 50):
 
 @app.post("/policy/interpreter")
 def interpret_policy(req: PolicyNLRequest):
-    policy = PolicyInterpreterAgent().interpret(req.policy_text)
+    policy = PolicyInterpreterAgent().interpret(req.policy_text, SCHEMA)  # Pass schema
     return{
         "status": "ok",
         "policy": policy
