@@ -3,6 +3,5 @@
   "deny_pii": true,
   "blocked_columns": [],
   "allowed_tables": [
-    "transactions"
   ]
 }
