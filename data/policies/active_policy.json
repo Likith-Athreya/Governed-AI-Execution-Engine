@@ -1,8 +1,8 @@
 {
   "max_rows": null,
   "deny_pii": false,
-  "blocked_columns": [],
-  "allowed_tables": [
-    "transactions"
-  ]
+  "blocked_columns": [
+    "vendor_name"
+  ],
+  "allowed_tables": []
 }

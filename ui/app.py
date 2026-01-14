@@ -1,24 +1,23 @@
-import streamlit as st
-import requests
-import pandas as pd
+import streamlit as st, requests, pandas as pd
 
-API_BASE = "https://governed-ai-execution-engine.onrender.com"
+API_BASE = "http://127.0.0.1:8000"
+st.set_page_config(page_title="Governed AI Execution Engine", layout="wide")
 
-st.set_page_config(
-    page_title="Governed AI Execution Engine",
-    layout="wide"
-)
-
-page = st.sidebar.selectbox(
-    "Navigation",
-    ["Main", "Audit Logs", "Policy Playground"],
-)
+page = st.sidebar.selectbox("Navigation", ["Main", "Audit Logs", "Policy Playground"])
 
 def safe_json(res):
-    try:
-        return res.json()
-    except Exception:
-        return {"error": res.text}
+    try: return res.json()
+    except: return {"error": res.text}
+
+def display_result(data):
+    if not data: return
+    if data.get("operation") == "UPDATE":
+        st.success("✅ UPDATE successful!")
+        st.metric("Rows Affected", data.get("rows_affected", 0))
+    elif "columns" in data and data["rows"]:
+        st.dataframe(pd.DataFrame(data["rows"], columns=data["columns"]))
+    else:
+        st.info("No results")
 
 st.title("Governed AI Execution Engine")
 st.caption("Natural language → simulation → governed execution")
@@ -32,13 +31,23 @@ if page == "Main":
         height=80
     )
 
+    human_free = st.toggle("Human-Free Execution", value=False, key="human_free_main")
+    st.caption("When enabled, the system uses episodic memory for autonomous decision-making")
+
+    st.session_state["human_free"] = human_free
+
     simulate_btn = st.button("Simulate")
 
     if simulate_btn and user_input:
+        human_free = st.session_state.get("human_free", False)
+
         with st.spinner("Interpreting and simulating..."):
             res = requests.post(
                 f"{API_BASE}/nl_simulate",
-                json={"user_input": user_input}
+                json={
+                    "user_input": user_input,
+                    "human_free": human_free
+                }
             )
 
             if res.status_code != 200:
@@ -72,12 +81,21 @@ if page == "Main":
 
         with col1:
             st.markdown("### Query Impact")
-            st.json({
-                "Query Type": simulation.get("query_type"),
-                "Tables": simulation.get("tables_accessed"),
-                "Rows Returned": simulation.get("rows_returned"),
-                "Execution Time (ms)": simulation.get("execution_time_ms")
-            })
+            query_type = simulation.get("query_type", "SELECT")
+            if query_type == "UPDATE":
+                st.json({
+                    "Query Type": query_type,
+                    "Tables": simulation.get("tables_accessed"),
+                    "Rows Affected": simulation.get("rows_affected", 0),
+                    "Execution Time (ms)": simulation.get("execution_time_ms")
+                })
+            else:
+                st.json({
+                    "Query Type": query_type,
+                    "Tables": simulation.get("tables_accessed"),
+                    "Rows Returned": simulation.get("rows_returned", 0),
+                    "Execution Time (ms)": simulation.get("execution_time_ms")
+                })
 
         with col2:
             st.markdown("### Column Classification")
@@ -93,29 +111,71 @@ if page == "Main":
         else:
             st.success("Simulation passed. Query eligible for execution.")
 
-    if "plan" in st.session_state and "simulation" in st.session_state:
-        plan = st.session_state["plan"]
-        simulation = st.session_state["simulation"]
+            if human_free:
+                st.info("🤖 Human-free mode enabled. Proceeding with autonomous execution...")
 
-        st.subheader("4. Execution")
-
-        can_execute = (
-            simulation.get("valid")
-            and simulation.get("query_type") == "SELECT"
-            and "PII" not in simulation.get("column_classification", {}).values()
-        )
-
-        if can_execute:
-            if st.button("Execute Query"):
-                with st.spinner("Executing governed query..."):
+                with st.spinner("Executing governed query autonomously..."):
                     res = requests.post(
                         f"{API_BASE}/execute",
                         json={
                             "sql": plan["sql"],
                             "simulation": simulation,
-                            "user_input": st.session_state.get("user_input", "")
+                            "user_input": user_input,
+                            "human_free": True
                         }
                     )
+
+                    if res.status_code == 200:
+                        result = safe_json(res)
+                        st.success("🎉 Autonomous execution completed successfully!")
+
+                        st.markdown("### Executed SQL")
+                        st.code(result["sql"], language="sql")
+
+                        st.markdown("### Simulation Summary")
+                        st.json(result["simulation"])
+
+                        st.markdown("### Query Result")
+                        display_result(result.get("data"))
+
+                        st.markdown("### 🧠 Episodic Memory Update")
+                        st.info("This query has been stored in episodic memory for future autonomous decision-making.")
+                    else:
+                        st.error("❌ Autonomous execution denied")
+                        st.json(safe_json(res))
+
+                st.stop()
+
+    if "plan" in st.session_state and "simulation" in st.session_state:
+        plan = st.session_state["plan"]
+        simulation = st.session_state["simulation"]
+
+        human_free = st.session_state.get("human_free", False)
+        if not human_free:
+            st.subheader("4. Execution")
+
+            query_type = simulation.get("query_type", "SELECT")
+            can_execute = (
+                simulation.get("valid")
+                and query_type in ["SELECT", "UPDATE"]
+                and "PII" not in simulation.get("column_classification", {}).values()
+            )
+
+            if can_execute:
+                if st.button("Execute Query"):
+                    execution_placeholder = st.empty()
+                    execution_placeholder.info("🔄 Requesting execution approval and processing...")
+
+                    with st.spinner("Executing governed query..."):
+                        res = requests.post(
+                            f"{API_BASE}/execute",
+                            json={
+                                "sql": plan["sql"],
+                                "simulation": simulation,
+                                "user_input": st.session_state.get("user_input", ""),
+                                "human_free": human_free
+                            }
+                        )
 
                     if res.status_code == 200:
                         result = safe_json(res)
@@ -128,17 +188,7 @@ if page == "Main":
                         st.json(result["simulation"])
 
                         st.markdown("### Query Result")
-                        data = result.get("data")
-
-                        if data and "columns" in data and "rows" in data and len(data["columns"]) > 0:
-                            if len(data["rows"]) > 0:
-                                df = pd.DataFrame(data["rows"], columns=data["columns"])
-                                st.dataframe(df, use_container_width=True)
-                                st.caption(f"Rows returned: {len(df)}")
-                            else:
-                                st.info("Query returned no rows")
-                        else:
-                            st.info("No data returned (all columns may be blocked)")
+                        display_result(result.get("data"))
 
                     else:
                         st.error("Execution denied")
@@ -147,161 +197,60 @@ if page == "Main":
             st.info("Execution disabled due to simulation result.")
 
 if page == "Audit Logs":
-    st.subheader("AUDIT LOG VIEWER")
+    st.subheader("Audit Logs")
 
-    if "audit_logs" not in st.session_state:
+    if st.button("🔄 Refresh") or "audit_logs" not in st.session_state:
         try:
-            res = requests.get(f"{API_BASE}/audit_logs", timeout=5)
-            if res.status_code == 200:
-                logs = res.json()
-                logs_list = logs.get("logs", []) if isinstance(logs, dict) else logs
-                st.session_state["audit_logs"] = logs_list
-            else:
-                st.session_state["audit_logs"] = []
-                st.session_state["audit_logs_error"] = f"Failed to load audit logs: {res.status_code} - {res.text}"
-        except requests.exceptions.RequestException as e:
+            logs = safe_json(requests.get(f"{API_BASE}/audit_logs", timeout=5))
+            st.session_state["audit_logs"] = logs.get("logs", logs) if isinstance(logs, dict) else logs
+        except:
             st.session_state["audit_logs"] = []
-            st.session_state["audit_logs_error"] = f"Connection error: {str(e)}"
-        except Exception as e:
-            st.session_state["audit_logs"] = []
-            st.session_state["audit_logs_error"] = f"Error loading audit logs: {str(e)}"
-
-    col1, col2 = st.columns([1, 10])
-    with col1:
-        if st.button("🔄 Refresh"):
-            try:
-                res = requests.get(f"{API_BASE}/audit_logs", timeout=5)
-                if res.status_code == 200:
-                    logs = res.json()
-                    logs_list = logs.get("logs", []) if isinstance(logs, dict) else logs
-                    st.session_state["audit_logs"] = logs_list
-                    st.session_state["audit_logs_error"] = None
-                    st.success("Audit logs refreshed")
-                else:
-                    st.session_state["audit_logs"] = []
-                    st.session_state["audit_logs_error"] = f"Failed to load audit logs: {res.status_code} - {res.text}"
-            except requests.exceptions.RequestException as e:
-                st.session_state["audit_logs"] = []
-                st.session_state["audit_logs_error"] = f"Connection error: {str(e)}"
-            except Exception as e:
-                st.session_state["audit_logs"] = []
-                st.session_state["audit_logs_error"] = f"Error loading audit logs: {str(e)}"
+            st.error("Failed to load audit logs")
 
     logs_list = st.session_state.get("audit_logs", [])
-    error = st.session_state.get("audit_logs_error")
-
-    if error:
-        st.error(error)
-        st.info("Make sure the API server is running at http://127.0.0.1:8000")
-
     if not logs_list:
         st.info("No audit logs found")
     else:
-        st.caption(f"Showing {len(logs_list)} audit log(s)")
+        st.caption(f"Showing {len(logs_list)} logs")
         for log in logs_list:
-            decision = log.get("decision", "UNKNOWN")
-            timestamp = log.get("timestamp", "Unknown time")
-            with st.expander(f"{timestamp} - {decision}"):
-                st.markdown("**User Input**")
-                st.write(log.get("user_input", "N/A"))
-
-                st.markdown("**SQL**")
+            with st.expander(f"{log.get('timestamp', 'Unknown')} - {log.get('decision', 'UNKNOWN')}"):
+                st.write(f"**Input:** {log.get('user_input', 'N/A')}")
                 st.code(log.get("sql", ""), language="sql")
-
-                st.markdown("**Decision Reason**")
-                st.write(log.get("reason", "N/A"))
-
-                st.markdown("**Simulation Evidence**")
+                st.write(f"**Reason:** {log.get('reason', 'N/A')}")
                 st.json(log.get("simulation", {}))
 
 if page == "Policy Playground":
-    st.subheader("Policy playground(What-if simulation)")
-    st.caption(
-        "What-If simulation lets you test governance policies without enforcing them."
-    )
+    st.subheader("Policy Playground")
 
-    policy_text = st.text_area(
-        "Describe a governance policy",
-        placeholder="Block access to PII and limit rows to 10",
-        height=100
-    )
+    policy_text = st.text_area("Describe policy", "Block PII, limit to 10 rows", height=80)
 
-    if st.button("Interpret & Run What-if"):
-        # Use a representative query that touches multiple tables; no dependency on Main page
-        representative_sql = "SELECT v.id, v.vendor_name, v.country, t.amount FROM vendors v JOIN transactions t ON v.id = t.vendor_id ORDER BY t.amount DESC LIMIT 1"
-
-        with st.spinner("Interpreting policy and analyzing its impact on data access..."):
-
-            # 1) Interpret the policy
-            res = requests.post(
-                f"{API_BASE}/policy/interpreter",
-                json={"policy_text": policy_text}
-            )
-
-            if res.status_code != 200:
-                st.error("Policy interpretation failed")
-                st.text(res.text)
-                st.stop()
-
-            data = res.json()
-            if data.get("status") != "ok":
-                st.error("Policy interpretation failed")
-                st.json(data)
-                st.stop()
-
-            policy = data["policy"]
-            st.session_state["what_if_policy"] = policy
-
-            # 2) Run what-if once against the representative query
-            res = requests.post(
-                f"{API_BASE}/policy/what_if",
-                json={
-                    "policy": policy,
-                    "sql": representative_sql,
-                },
-            )
-
-            if res.status_code != 200:
-                st.error("What-if simulation failed")
-                st.text(res.text)
-                st.stop()
-
-            result = res.json()
-
-        st.success("Policy interpreted and what-if analysis completed.")
-        st.markdown("**Policy JSON**")
-        st.json(policy)
-
-        # Show LLM explanation if present
-        llm_explanation = result.get("llm_explanation")
-        if llm_explanation:
-            st.markdown("**LLM Explanation**")
-            st.write(llm_explanation)
-
-        st.markdown("**Simulation Result**")
-        st.json(result)
-
-    # Allow activating the last interpreted policy as the live governance policy
-    if "what_if_policy" in st.session_state:
-        st.markdown("---")
-        st.markdown("### Activate this policy")
-        st.caption("Apply the interpreted policy as the active governance policy for all future executions.")
-
-        if st.button("Activate Policy"):
-            with st.spinner("Activating policy..."):
-                res = requests.post(
-                    f"{API_BASE}/policy/activate",
-                    json=st.session_state["what_if_policy"],
-                )
-
-                if res.status_code != 200:
-                    st.error("Policy activation failed")
-                    st.text(res.text)
+    if st.button("Test Policy"):
+        with st.spinner("Testing policy..."):
+            try:
+                policy_res = safe_json(requests.post(f"{API_BASE}/policy/interpreter", json={"policy_text": policy_text}))
+                if policy_res.get("status") == "ok":
+                    st.session_state["test_policy"] = policy_res["policy"]
+                    what_if_res = safe_json(requests.post(f"{API_BASE}/policy/what_if", json={
+                        "policy": policy_res["policy"],
+                        "sql": "SELECT v.vendor_name FROM vendors v LIMIT 1"
+                    }))
+                    st.success("Policy tested successfully")
+                    st.json(policy_res["policy"])
+                    if what_if_res.get("llm_explanation"):
+                        st.write(what_if_res["llm_explanation"])
                 else:
-                    data = res.json()
-                    st.success("Policy activated. New active policy:")
-                    st.json(data.get("policy", {}))
+                    st.error("Policy interpretation failed")
+            except:
+                st.error("Policy test failed")
 
-
-    
-
+    if st.button("Activate Policy") and "test_policy" in st.session_state:
+        with st.spinner("Activating..."):
+            try:
+                res = safe_json(requests.post(f"{API_BASE}/policy/activate", json=st.session_state["test_policy"]))
+                if res.get("status") == "activated":
+                    st.success("Policy activated!")
+                    st.json(res["policy"])
+                else:
+                    st.error("Activation failed")
+            except:
+                st.error("Activation failed")
